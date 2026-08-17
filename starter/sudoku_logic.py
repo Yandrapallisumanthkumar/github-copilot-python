@@ -3,19 +3,25 @@ import random
 
 SIZE = 9
 EMPTY = 0
+FULL_MASK = (1 << SIZE) - 1
+
 
 def deep_copy(board):
     return copy.deepcopy(board)
 
+
 def create_empty_board():
     return [[EMPTY for _ in range(SIZE)] for _ in range(SIZE)]
 
+
 def is_safe(board, row, col, num):
-    # Check row and column
+    if num == EMPTY:
+        return True
+
     for x in range(SIZE):
         if board[row][x] == num or board[x][col] == num:
             return False
-    # Check 3x3 box
+
     start_row = row - row % 3
     start_col = col - col % 3
     for i in range(3):
@@ -24,34 +30,194 @@ def is_safe(board, row, col, num):
                 return False
     return True
 
-def fill_board(board):
+
+def _candidate_values(board, row, col):
+    used = set()
+    for value in board[row]:
+        if value != EMPTY:
+            used.add(value)
+    for r in range(SIZE):
+        value = board[r][col]
+        if value != EMPTY:
+            used.add(value)
+
+    start_row = row - row % 3
+    start_col = col - col % 3
+    for r in range(start_row, start_row + 3):
+        for c in range(start_col, start_col + 3):
+            value = board[r][c]
+            if value != EMPTY:
+                used.add(value)
+
+    return [value for value in range(1, SIZE + 1) if value not in used]
+
+
+def _find_empty_cell(board):
+    best_cell = None
+    best_candidates = None
+
     for row in range(SIZE):
         for col in range(SIZE):
-            if board[row][col] == EMPTY:
-                possible = list(range(1, SIZE + 1))
-                random.shuffle(possible)
-                for candidate in possible:
-                    if is_safe(board, row, col, candidate):
-                        board[row][col] = candidate
-                        if fill_board(board):
-                            return True
-                        board[row][col] = EMPTY
-                return False
-    return True
+            if board[row][col] != EMPTY:
+                continue
 
-def remove_cells(board, clues):
-    attempts = SIZE * SIZE - clues
-    while attempts > 0:
-        row = random.randrange(SIZE)
-        col = random.randrange(SIZE)
-        if board[row][col] != EMPTY:
+            candidates = _candidate_values(board, row, col)
+            if not candidates:
+                return row, col, []
+
+            if best_candidates is None or len(candidates) < len(best_candidates):
+                best_cell = (row, col)
+                best_candidates = candidates
+                if len(best_candidates) == 1:
+                    return best_cell[0], best_cell[1], best_candidates
+
+    if best_cell is None:
+        return None, None, []
+    return best_cell[0], best_cell[1], best_candidates
+
+
+def _search(board, limit=1):
+    if limit <= 0:
+        return limit
+
+    row, col, candidates = _find_empty_cell(board)
+    if row is None:
+        return 1
+    if not candidates:
+        return 0
+
+    solutions = 0
+    for value in candidates:
+        board[row][col] = value
+        solutions += _search(board, limit - solutions)
+        board[row][col] = EMPTY
+        if solutions >= limit:
+            return solutions
+    return solutions
+
+
+def count_solutions(board, limit=2):
+    working_board = deep_copy(board)
+
+    row_mask = [0] * SIZE
+    col_mask = [0] * SIZE
+    box_mask = [0] * SIZE
+
+    for row in range(SIZE):
+        for col in range(SIZE):
+            value = working_board[row][col]
+            if value == EMPTY:
+                continue
+            bit = 1 << (value - 1)
+            box_index = (row // 3) * 3 + (col // 3)
+            if row_mask[row] & bit or col_mask[col] & bit or box_mask[box_index] & bit:
+                return 0
+            row_mask[row] |= bit
+            col_mask[col] |= bit
+            box_mask[box_index] |= bit
+
+    count = 0
+
+    def search():
+        nonlocal count
+        if count >= limit:
+            return
+
+        best_row = -1
+        best_col = -1
+        best_mask = 0
+        best_size = 10
+
+        for row in range(SIZE):
+            for col in range(SIZE):
+                if working_board[row][col] != EMPTY:
+                    continue
+                box_index = (row // 3) * 3 + (col // 3)
+                mask = FULL_MASK & ~(row_mask[row] | col_mask[col] | box_mask[box_index])
+                size = mask.bit_count()
+                if size == 0:
+                    return
+                if size < best_size:
+                    best_row = row
+                    best_col = col
+                    best_mask = mask
+                    best_size = size
+                    if size == 1:
+                        break
+            if best_size == 1:
+                break
+
+        if best_row == -1:
+            count += 1
+            return
+
+        while best_mask:
+            bit = best_mask & -best_mask
+            value = bit.bit_length()
+            box_index = (best_row // 3) * 3 + (best_col // 3)
+            working_board[best_row][best_col] = value
+            row_mask[best_row] |= bit
+            col_mask[best_col] |= bit
+            box_mask[box_index] |= bit
+            search()
+            row_mask[best_row] ^= bit
+            col_mask[best_col] ^= bit
+            box_mask[box_index] ^= bit
+            working_board[best_row][best_col] = EMPTY
+            best_mask ^= bit
+            if count >= limit:
+                return
+
+    search()
+    return count
+
+
+def _generate_full_solution():
+    board = create_empty_board()
+    row, col, candidates = _find_empty_cell(board)
+    if row is None:
+        return board
+
+    def backtrack():
+        row, col, candidates = _find_empty_cell(board)
+        if row is None:
+            return True
+
+        for value in random.sample(candidates, len(candidates)):
+            board[row][col] = value
+            if backtrack():
+                return True
             board[row][col] = EMPTY
-            attempts -= 1
+        return False
+
+    if not backtrack():
+        raise ValueError('Failed to generate a valid Sudoku solution')
+    return board
+
+
+def _remove_cells_for_unique_solution(board, target_clues):
+    remaining_clues = sum(cell != EMPTY for row in board for cell in row)
+    positions = [(row, col) for row in range(SIZE) for col in range(SIZE)]
+    random.shuffle(positions)
+
+    for row, col in positions:
+        if remaining_clues <= target_clues:
+            break
+        if board[row][col] == EMPTY:
+            continue
+
+        removed = board[row][col]
+        board[row][col] = EMPTY
+        if count_solutions(board, limit=2) != 1:
+            board[row][col] = removed
+            continue
+        remaining_clues -= 1
+
+    return board
+
 
 def generate_puzzle(clues=35):
-    board = create_empty_board()
-    fill_board(board)
-    solution = deep_copy(board)
-    remove_cells(board, clues)
-    puzzle = deep_copy(board)
+    solution = _generate_full_solution()
+    puzzle = deep_copy(solution)
+    puzzle = _remove_cells_for_unique_solution(puzzle, clues)
     return puzzle, solution
