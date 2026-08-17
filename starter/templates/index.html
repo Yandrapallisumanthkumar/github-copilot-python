@@ -6,15 +6,37 @@
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <h1>Sudoku Game</h1>
-  <div id="sudoku-board"></div>
-  <div class="controls">
-    <button id="new-game">New Game</button>
-    <button id="check-solution">Check Solution</button>
-    <span class="timer-label">Time:</span>
-    <span id="timer">00:00</span>
-    <span id="message"></span>
+  <button id="theme-toggle" aria-label="Toggle dark mode" title="Toggle theme"><span id="theme-icon" class="theme-icon"></span></button>
+  <div id="page-header">
+    <h1>Sudoku</h1>
   </div>
+
+  <div id="app-grid">
+    <div id="left-controls">
+      <label for="difficulty-select">Difficulty:</label>
+      <select id="difficulty-select" name="difficulty" aria-label="Select difficulty">
+        <option value="easy">Easy</option>
+        <option value="medium" selected>Medium</option>
+        <option value="hard">Hard</option>
+      </select>
+      <button id="new-game">New Game</button>
+    </div>
+
+    <div id="center">
+      <div id="sudoku-board"></div>
+      <div id="timer-wrap">
+        <span class="timer-label">Time:</span>
+        <span id="timer">00:00</span>
+        <span id="message"></span>
+      </div>
+    </div>
+
+    <div id="right-controls">
+      <button id="check-solution">Check</button>
+      <button id="hint-button" aria-label="Get a hint">Hint</button>
+    </div>
+  </div>
+
   <div id="scoreboard" aria-live="polite">
     <!-- Scoreboard will be rendered here by main.js -->
   </div>
