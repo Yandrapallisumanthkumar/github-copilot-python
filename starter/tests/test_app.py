@@ -22,6 +22,8 @@ def test_index_route_renders_html(client):
     assert response.status_code == 200
     assert b'Sudoku Game' in response.data
     assert b'new-game' in response.data
+    # ensure timer element is present in the served HTML
+    assert b'id="timer"' in response.data
 
 
 def test_new_game_route_returns_puzzle_and_stores_solution(client):

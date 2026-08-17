@@ -1,6 +1,55 @@
 // Client-side rendering and interaction for the Flask-backed Sudoku
 const SIZE = 9;
 let puzzle = [];
+// Timer state (client-side only)
+let _timerIntervalId = null;
+let _timerStartMs = null;
+let _elapsedSeconds = 0;
+let _timerRunning = false;
+
+function formatTime(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+}
+
+function updateTimerDisplay() {
+  const el = document.getElementById('timer');
+  if (!el) return;
+  if (_timerRunning && _timerStartMs !== null) {
+    const now = Date.now();
+    _elapsedSeconds = Math.floor((now - _timerStartMs) / 1000);
+  }
+  el.innerText = formatTime(_elapsedSeconds);
+}
+
+function startTimer() {
+  // ensure previous interval cleared
+  stopTimer();
+  _timerStartMs = Date.now() - (_elapsedSeconds * 1000);
+  _timerRunning = true;
+  updateTimerDisplay();
+  _timerIntervalId = setInterval(updateTimerDisplay, 250);
+}
+
+function stopTimer() {
+  if (_timerIntervalId !== null) {
+    clearInterval(_timerIntervalId);
+    _timerIntervalId = null;
+  }
+  if (_timerRunning && _timerStartMs !== null) {
+    _elapsedSeconds = Math.floor((Date.now() - _timerStartMs) / 1000);
+  }
+  _timerRunning = false;
+  _timerStartMs = null;
+  updateTimerDisplay();
+}
+
+function resetTimer() {
+  stopTimer();
+  _elapsedSeconds = 0;
+  updateTimerDisplay();
+}
 
 function createBoardElement() {
   const boardDiv = document.getElementById('sudoku-board');
@@ -52,6 +101,9 @@ async function newGame() {
   const data = await res.json();
   renderPuzzle(data.puzzle);
   document.getElementById('message').innerText = '';
+  // Timer: reset and start whenever a new puzzle is loaded
+  resetTimer();
+  startTimer();
 }
 
 async function checkSolution() {
@@ -90,6 +142,8 @@ async function checkSolution() {
   if (incorrect.size === 0) {
     msg.style.color = '#388e3c';
     msg.innerText = 'Congratulations! You solved it!';
+    // Stop the timer once the puzzle is correctly completed
+    stopTimer();
   } else {
     msg.style.color = '#d32f2f';
     msg.innerText = 'Some cells are incorrect.';
