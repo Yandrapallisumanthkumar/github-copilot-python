@@ -5,6 +5,24 @@ SIZE = 9
 EMPTY = 0
 FULL_MASK = (1 << SIZE) - 1
 
+# Difficulty configuration: map level name to exact number of prefilled clues
+DIFFICULTY_CLUES = {
+    'easy': 45,
+    'medium': 35,
+    'hard': 28,
+}
+
+
+def clues_for_difficulty(level: str) -> int:
+    if level is None:
+        raise ValueError('Difficulty level is required')
+    if not isinstance(level, str):
+        raise ValueError('Difficulty level must be a string')
+    key = level.lower()
+    if key not in DIFFICULTY_CLUES:
+        raise ValueError(f'Unknown difficulty: {level}')
+    return DIFFICULTY_CLUES[key]
+
 
 def deep_copy(board):
     return copy.deepcopy(board)
@@ -196,24 +214,33 @@ def _generate_full_solution():
 
 
 def _remove_cells_for_unique_solution(board, target_clues):
-    remaining_clues = sum(cell != EMPTY for row in board for cell in row)
-    positions = [(row, col) for row in range(SIZE) for col in range(SIZE)]
-    random.shuffle(positions)
+    # Try multiple randomized removal orders to reach exactly target_clues
+    max_attempts = 8
+    original = deep_copy(board)
+    for attempt in range(max_attempts):
+        working = deep_copy(original)
+        remaining_clues = sum(cell != EMPTY for row in working for cell in row)
+        positions = [(row, col) for row in range(SIZE) for col in range(SIZE)]
+        random.shuffle(positions)
 
-    for row, col in positions:
-        if remaining_clues <= target_clues:
-            break
-        if board[row][col] == EMPTY:
-            continue
+        for row, col in positions:
+            if remaining_clues <= target_clues:
+                break
+            if working[row][col] == EMPTY:
+                continue
 
-        removed = board[row][col]
-        board[row][col] = EMPTY
-        if count_solutions(board, limit=2) != 1:
-            board[row][col] = removed
-            continue
-        remaining_clues -= 1
+            removed = working[row][col]
+            working[row][col] = EMPTY
+            if count_solutions(working, limit=2) != 1:
+                working[row][col] = removed
+                continue
+            remaining_clues -= 1
 
-    return board
+        if remaining_clues == target_clues:
+            return working
+
+    # If we couldn't reach exact target within attempts, raise an error
+    raise ValueError(f'Unable to generate puzzle with exactly {target_clues} clues')
 
 
 def generate_puzzle(clues=35):

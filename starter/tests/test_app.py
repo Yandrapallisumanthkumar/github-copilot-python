@@ -61,3 +61,34 @@ def test_check_solution_rejects_missing_game_and_reports_wrong_cells(client):
     assert response.status_code == 200
     incorrect = response.get_json()['incorrect']
     assert [0, 0] in incorrect
+
+
+def test_new_game_route_accepts_difficulty_and_preserves_backward_compatibility(client):
+    # difficulty=easy
+    response = client.get('/new?difficulty=easy')
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert len(payload['puzzle']) == 9
+    assert sum(cell != 0 for row in payload['puzzle'] for cell in row) == 45
+
+    # difficulty=medium
+    response = client.get('/new?difficulty=medium')
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert sum(cell != 0 for row in payload['puzzle'] for cell in row) == 35
+
+    # difficulty=hard
+    response = client.get('/new?difficulty=hard')
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert sum(cell != 0 for row in payload['puzzle'] for cell in row) == 28
+
+    # backward compatibility with clues param
+    response = client.get('/new?clues=40')
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert sum(cell != 0 for row in payload['puzzle'] for cell in row) == 40
+
+    # invalid difficulty
+    response = client.get('/new?difficulty=unknown')
+    assert response.status_code == 400

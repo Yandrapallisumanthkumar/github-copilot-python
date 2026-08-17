@@ -184,3 +184,20 @@ def test_multiple_generated_puzzles_remain_unique():
     for _ in range(10):
         puzzle, _ = sudoku_logic.generate_puzzle(30)
         assert sudoku_logic.count_solutions(puzzle, limit=2) == 1
+
+
+def test_clues_for_difficulty_and_exact_counts():
+    assert sudoku_logic.clues_for_difficulty('easy') == 45
+    assert sudoku_logic.clues_for_difficulty('medium') == 35
+    assert sudoku_logic.clues_for_difficulty('hard') == 28
+
+    for level in ['easy', 'medium', 'hard']:
+        clues = sudoku_logic.clues_for_difficulty(level)
+        puzzle, solution = sudoku_logic.generate_puzzle(clues)
+        assert sum(cell != sudoku_logic.EMPTY for row in puzzle for cell in row) == clues
+        assert sudoku_logic.count_solutions(puzzle, limit=2) == 1
+
+
+def test_clues_for_difficulty_invalid_raises():
+    with pytest.raises(ValueError):
+        sudoku_logic.clues_for_difficulty('invalid-level')
