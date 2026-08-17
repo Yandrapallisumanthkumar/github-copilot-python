@@ -24,6 +24,8 @@ def test_index_route_renders_html(client):
     assert b'new-game' in response.data
     # ensure timer element is present in the served HTML
     assert b'id="timer"' in response.data
+    # ensure scoreboard container is present for client-side rendering
+    assert b'id="scoreboard"' in response.data
 
 
 def test_new_game_route_returns_puzzle_and_stores_solution(client):

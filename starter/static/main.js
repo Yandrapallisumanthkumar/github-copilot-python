@@ -6,6 +6,10 @@ let _timerIntervalId = null;
 let _timerStartMs = null;
 let _elapsedSeconds = 0;
 let _timerRunning = false;
+// Scoreboard and game state
+const SCORE_KEY = 'sudoku_top_scores_v1';
+let _hintsUsed = 0;
+let _scoreRecorded = false;
 
 function formatTime(seconds) {
   const mins = Math.floor(seconds / 60);
@@ -49,6 +53,94 @@ function resetTimer() {
   stopTimer();
   _elapsedSeconds = 0;
   updateTimerDisplay();
+}
+
+// --- Scoreboard helpers ---
+function validateScore(obj) {
+  if (!obj || typeof obj !== 'object') return false;
+  if (typeof obj.name !== 'string') return false;
+  if (typeof obj.timeSeconds !== 'number' || !Number.isFinite(obj.timeSeconds) || obj.timeSeconds < 0) return false;
+  if (typeof obj.difficulty !== 'string') return false;
+  if (typeof obj.hintsUsed !== 'number' || !Number.isInteger(obj.hintsUsed) || obj.hintsUsed < 0) return false;
+  return true;
+}
+
+function loadScores() {
+  try {
+    const raw = localStorage.getItem(SCORE_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return arr.filter(validateScore);
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveScores(scores) {
+  try {
+    localStorage.setItem(SCORE_KEY, JSON.stringify(scores));
+  } catch (e) {
+    // ignore localStorage failures
+  }
+}
+
+function addScore(score) {
+  if (!validateScore(score)) return;
+  const scores = loadScores();
+  scores.push(score);
+  scores.sort((a, b) => a.timeSeconds - b.timeSeconds);
+  const top = scores.slice(0, 10);
+  saveScores(top);
+  renderScoreboard();
+}
+
+function difficultyFromPuzzle(puz) {
+  const clues = puz.flat().filter(v => v !== 0).length;
+  if (clues === 45) return 'easy';
+  if (clues === 35) return 'medium';
+  if (clues === 28) return 'hard';
+  return 'custom';
+}
+
+function renderScoreboard() {
+  const container = document.getElementById('scoreboard');
+  if (!container) return;
+  const scores = loadScores();
+  container.innerHTML = '';
+  const title = document.createElement('h2');
+  title.innerText = 'Top 10 Scores';
+  container.appendChild(title);
+
+  if (scores.length === 0) {
+    const p = document.createElement('p');
+    p.innerText = 'No top scores yet — finish a game to appear here.';
+    container.appendChild(p);
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'scoreboard-table';
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th>#</th><th>Name</th><th>Time</th><th>Difficulty</th><th>Hints</th></tr>';
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  scores.forEach((s, i) => {
+    const tr = document.createElement('tr');
+    const tdRank = document.createElement('td'); tdRank.innerText = String(i + 1);
+    const tdName = document.createElement('td'); tdName.innerText = s.name;
+    const tdTime = document.createElement('td'); tdTime.innerText = formatTime(Math.floor(s.timeSeconds));
+    const tdDiff = document.createElement('td'); tdDiff.innerText = s.difficulty;
+    const tdHints = document.createElement('td'); tdHints.innerText = String(s.hintsUsed);
+    tr.appendChild(tdRank);
+    tr.appendChild(tdName);
+    tr.appendChild(tdTime);
+    tr.appendChild(tdDiff);
+    tr.appendChild(tdHints);
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  container.appendChild(table);
 }
 
 function createBoardElement() {
@@ -104,6 +196,10 @@ async function newGame() {
   // Timer: reset and start whenever a new puzzle is loaded
   resetTimer();
   startTimer();
+  // reset per-game score state
+  _hintsUsed = 0;
+  _scoreRecorded = false;
+  renderScoreboard();
 }
 
 async function checkSolution() {
@@ -144,6 +240,19 @@ async function checkSolution() {
     msg.innerText = 'Congratulations! You solved it!';
     // Stop the timer once the puzzle is correctly completed
     stopTimer();
+    // Record score once per completed game
+    if (!_scoreRecorded) {
+      _scoreRecorded = true;
+      const name = (prompt('You solved it! Enter your name for the Top 10 scoreboard:') || '').trim() || 'Anonymous';
+      const difficulty = difficultyFromPuzzle(puzzle);
+      const score = {
+        name,
+        timeSeconds: Math.floor(_elapsedSeconds),
+        difficulty,
+        hintsUsed: Number.isInteger(_hintsUsed) ? _hintsUsed : 0,
+      };
+      addScore(score);
+    }
   } else {
     msg.style.color = '#d32f2f';
     msg.innerText = 'Some cells are incorrect.';
@@ -156,4 +265,5 @@ window.addEventListener('load', () => {
   document.getElementById('check-solution').addEventListener('click', checkSolution);
   // initialize
   newGame();
+  renderScoreboard();
 });
